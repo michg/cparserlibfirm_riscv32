@@ -1,0 +1,10 @@
+/build
+/revision.h
+/cparser.bootstrap
+/cparser.bootstrap2
+/cparser.bootstrape
+/config.mak
+/release
+*.vcproj.*.*.user
+*.suo
+*.ncb

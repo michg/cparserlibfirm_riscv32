@@ -1,0 +1,407 @@
+.Dd ""
+.Dt CPARSER 1
+.Sh NAME
+.Nm cparser
+.Nd C compiler
+.Sh SYNOPSIS
+.Oo Ar architecture Ns Oo Oo Cm - Ns Ar vendor Oc Ns Cm - Ns Ar system Oc Ns Cm - Oc Ns Nm
+.Op Fl c | S | E | -print-ast | dumpmachine
+.Op Fl -print-implicit-cast
+.Op Fl -print-parenthesis
+.Op Fl Oo Cm no- Oc Ns Cm integrated-cpp
+.Op Fl target Ar architecture Ns Op Oo Cm - Ns Ar vendor Oc Ns Cm - Ns Ar system
+.Op Fl ansi
+.Op Fl std= Ns Ar standard
+.Op Fl - Ns Oo Cm no- Oc Ns Cm gcc
+.Op Fl - Ns Oo Cm no- Oc Ns Cm ms
+.Op Fl g Ns Op Ar level
+.Op Fl O Ns Op Ar level
+.Op Fl W Ns Op Oo Cm no- Oc Ns Oo Cm error= Oc Ns Ar warning
+.Op Fl w
+.Op Fl I Ns Ar dir
+.Op Fl L Ns Ar dir
+.Op Fl D Ns Ar macro Ns Op Cm = Ns Ar defn
+.Op Fl U Ns Ar macro
+.Op Fl f Ns Ar option
+.Op Fl finput-charset= Ns Ar encoding
+.Op Fl m Ns Ar option
+.Op Fl l Ns Ar library
+.Op Fl o Ns Ar outfile
+.Op Fl x Ns Ar language
+.Op Fl Wl, Ns Ar option
+.Op Fl Wp, Ns Ar option
+.Op Fl -sysroot= Ns Ar dir
+.Op Fl isysroot Ar dir
+.Ar
+.Sh DESCRIPTION
+.Nm
+is a C compiler, which can parse C90 and C99 as well as many GCC and some MSC extensions.
+It also provides many useful analyses for warnings and generates concise messages in case of error.
+It uses libFIRM for optimization and code generation.
+The compiler driver is largely compatible with GCC.
+.Sh OPTIONS
+.Bl -tag
+.It Fl c
+Compile the input files to object files.
+.No The default output filename is the input filename with the extension replaced by Sq .o .
+.It Fl S
+Compile the input files to assembler.
+.No The default output filename is the input filename with the extension replaced by Sq .s .
+.It Fl E
+Preprocess the input file only.
+By default the result is output to stdout.
+.It Fl -print-ast
+Output the abstract syntax tree of the parsed input file as C again.
+.It Fl dumpmachine
+.No Print the default target triple or the current target triple selected by Fl target .
+.It Fl -print-implicit-cast
+.No When using Fl -print-ast , No show casts, which are inserted by the semantic checks .
+.It Fl -print-parenthesis
+.No When using Fl -print-ast , No show all expressions fully parenthesized .
+.It Fl Oo Cm no- Oc Ns Cm integrated-cpp
+Use the integrated preprocessor instead of an external one.
+.No This is the default if no Fl target No is specified .
+.No Otherwise the external preprocessor Ar architecture Ns Cm - Ns Ar vendor Ns Cm - Ns Ar system Ns Cm -gcc No is used .
+.It Fl target Ar architecture Ns Oo Oo Cm - Ns Ar vendor Oc Ns Cm - Ns Ar system Oc , Oo Ar architecture Ns Oo Oo Cm - Ns Ar vendor Oc Ns Cm - Ns Ar system Oc Ns Cm - Oc Ns Nm
+Set target, for which code is generated.
+The target can also be set by prefixing the executable name.
+.No The default target triple is determined by the host when building Nm .
+.No Supported Ar architecture Ns s are:
+.Bl -dash -compact
+.It
+.Cm amd64, x86_64
+.It
+.Cm arm
+.It
+.Cm i386 , i486 , i586 , i686 , i787
+.It
+.Cm mips
+.It
+.Cm riscv32
+.It
+.Cm sparc
+.El
+.No Supported Ar vendor Ns s are:
+.Bl -dash -compact
+.It
+.Cm leon Pq for Cm sparc
+.It
+.Cm unknown No (default)
+.El
+.No Supported Ar system Ns s are:
+.Bl -dash -compact
+.It
+.Cm *bsd*
+.It
+.Cm darwin*
+.It
+.Cm elf , irtss , octopos , unknown No (default)
+.It
+.Cm freebsd*
+.It
+.Cm *linux*
+.It
+.Cm midipix*
+.It
+.Cm mingw*
+.El
+.It Fl ansi
+.No Same as Fl std=c90 Po for C Pc No or Fl std=c++98 Pq for C++ .
+.It Fl std= Ns Ar standard
+Select the language standard.
+Supported values are:
+.Bl -tag -compact -width "iso9899:1990"
+.It Cm c89
+.It Cm c90
+.It Cm iso9899:1990
+ISO C90
+.It Cm gnu89
+ISO C90 with GCC extensions
+.It Cm c99
+.It Cm iso9899:1999
+ISO C99
+.It Cm gnu99
+ISO C99 with GCC extensions
+.It Cm c11
+.It Cm iso9899:2011
+ISO C11
+.It Cm gnu11
+ISO C11 with GCC extensions
+.It Cm c++98
+ISO C++ 1998.
+Not supported yet.
+.It Cm gnu++98
+ISO C++ 1998 with GCC extensions.
+Not supported yet.
+.El
+.It Fl - Ns Oo Cm no- Oc Ns Cm gcc
+Enable GCC extensions.
+.No This switch supersedes Fl std .
+.No The default depends on Fl std :
+.No On for Cm gnu* , No off otherwise .
+.It Fl - Ns Oo Cm no- Oc Ns Cm ms
+Enable MSC extensions.
+Default is off.
+.It Fl g Ns Op Ar level
+When compiling C files, add DWARF debug information.
+.It Fl O Ns Op Ar level
+.\" TODO expand
+Select the optimization level.
+Sensible values are
+.Cm fast , g , s , z No and Cm 0 No till Cm 4 , No inclusive .
+.No If Ar level No is not given, Cm 1 No is assumed .
+.No Default is Cm 0 .
+.\" TODO expand
+.It Fl W Ns Oo Cm no- Oc Ns Ar warning
+Enable the specified warning.
+.It Fl Werror= Ns Ar warning
+.No Enable the specified warning and turn it into an error, even in the presence of Fl Wno-error .
+.It Fl Wno-error= Ns Ar warning
+.No Force the specified warning to only be a warning, even in the presence of Fl Werror .
+This neither enables nor disables the warning itself.
+.It Fl Waddress
+Warn about suspicious use of addresses, like using the address of a function or variable as boolean condition or comparing with the address of a string literal.
+.It Fl Waggregate-return
+Warn about defining or calling a function, which returns a struct or union by value.
+.It Fl Wall
+Activate most warnings.
+In particular these are
+.Fl Waddress ,
+.Fl Wattribute ,
+.Fl Wchar-subscripts ,
+.Fl Wcomment ,
+.Fl Wempty-statement ,
+.Fl Wformat ,
+.Fl Wimplicit-function-declaration ,
+.Fl Wimplicit-int ,
+.Fl Winit-self ,
+.Fl Wmain ,
+.Fl Wnonnull ,
+.Fl Wparentheses-assignment ,
+.Fl Wparentheses-comparison ,
+.Fl Wparentheses-else ,
+.Fl Wparentheses-logical ,
+.Fl Wparentheses-shift ,
+.Fl Wpointer-arith ,
+.Fl Wredundant-decls ,
+.Fl Wreturn-type ,
+.Fl Wshadow-local ,
+.Fl Wsign-compare ,
+.Fl Wstrict-prototypes ,
+.Fl Wswitch-enum ,
+.Fl Wunknown-pragmas ,
+.Fl Wunreachable-code ,
+.Fl Wunused-function ,
+.Fl Wunused-label ,
+.Fl Wunused-parameter ,
+.Fl Wunused-value ,
+.Fl Wunused-variable .
+.It Fl Wcast-qual
+.No Warn whenever a pointer cast removes qualifiers from the pointed-to type, e.g. casting a So const char* Sc to Sq char* .
+.It Fl Wchar-subscripts
+.No Warn about using an expression of type char as array subscript, e.g. Sq char\ c; arr[c] .
+.It Fl Wcpp
+.No Show warning messages emitted by So #warning Sc directives.
+Default is on.
+.It Fl Wdeclaration-after-label
+Warn when a declaration is found right after a label, which is not allowed in C.
+This option has no effect for C++, which allows this.
+Default is on as error.
+.It Fl Wdeclaration-after-statement
+Warn about mixing declarations and statements, which is not allowed prior to C99.
+.It Fl Wdiv-by-zero
+Warn about compile-time integer division by zero.
+.It Fl Wempty-statement
+.No Warn about empty statements, i.e. statements which only consist of a single Sq \&; .
+.No Use So {} Sc as replacement to avoid this warning.
+.It Fl Werror
+Treat warnings as errors, i.e. do not continue after parsing when a warning is encountered.
+.It Fl Wextra, W
+Activate some more warnings.
+In particular these are
+.Fl Wempty-statement ,
+.Fl Wshadow ,
+.Fl Wunused-parameter ,
+.Fl Wunused-value .
+.It Fl Wfatal-errors
+Immediately abort compilation when encountering an error.
+.It Fl Wformat
+Check format strings of char and wchar_t functions.
+.It Fl Wimplicit
+.No Activate Fl Wimplicit-function-declaration , Wimplicit-int .
+.It Fl Wimplicit-function-declaration
+Warn about calling a function without a prior declaration.
+.It Fl Wimplicit-int
+Warn about declarations whose declaration specifiers do not include a type specifier.
+.It Fl Winit-self
+Warn about uninitialized variables which are initialized with themselves.
+.It Fl Wlabel-at-end-of-block
+Warn when a label is found right before the closing brace of a compound statement, which is not allowed in C.
+Default is on as error.
+.It Fl Wlong-long
+.No Warn if the type So long long Sc is used .
+.It Fl Wmain
+.No Warn if the type of So main Sc is suspicious .
+.No \&It should be a non-static function declared as either So Ft int Fn main void Sc , So Ft int Fn main int char** Sc or, as an extension, Sq Ft int Fn main int char** char** .
+.It Fl Wmissing-declarations
+Warn if a non-static function or a global variable without a storage class is defined without a prior declaration.
+This is typically a sign of a missing #include or that the object should be static.
+.It Fl Wmissing-noreturn
+.No Warn about functions, which are candidates for the attribute Sq noreturn .
+.It Fl Wmissing-prototypes
+Warn if a global function is defined without a previous prototype declaration.
+.It Fl Wmultichar
+.No Warn if a multicharacter constant Po 'FOOF' Pc is used .
+.It Fl Wnested-externs
+Warn if an
+.Sq extern
+declaration is encountered within a function.
+.It Fl Wparentheses
+Warn if parentheses or braces are omitted in certain contexts.
+.No Activate Fl Wparentheses-assignment , Wparentheses-comparison , Wparentheses-else , Wparentheses-logical , Wparentheses-shift .
+.It Fl Wparentheses-assignment
+.No Warn if an assignment is used as condition, e.g. Sq if\ (x\ =\ 23) .
+Default is off.
+.It Fl Wparentheses-comparison
+.No Warn if cascaded comparisons appear which do not have their mathematical meaning, e.g. Sq if\ (23\ <=\ x\ <\ 42) .
+Default is off.
+.It Fl Wparentheses-else
+.No Warn if it there may be confusion which So if Sc Ns -statement an So else Sc Ns -branch belongs to, e.g. Sq if\ (x)\ if\ (y)\ {}\ else\ {} .
+Default is off.
+.It Fl Wparentheses-logical
+.No Warn if So && Sc without parentheses is used within So || Sc , e.g. Sq if\ (x\ ||\ y\ &&\ z) .
+Default is off.
+.It Fl Wparentheses-shift
+.No Warn if So + Sc or So - Sc is used as operand of So << Sc or So >> Sc , Sq e.g. x\ +\ y\ <<\ z .
+Default is off.
+.It Fl Wredundant-decls
+Warn about redundant declarations, i.e. multiple declarations of the same object or static forward declarations which have no use before their definition.
+.It Fl Wreturn-local-addr
+Warn about returning a pointer (or in C++, a reference) to a variable that goes out of scope after the function returns.
+.It Fl Wshadow
+Warn when a new declaration shadows another declaration with the same name in an outer scope.
+.It Fl Wshadow-local
+.No Like Fl Wshadow , No but only warn if the shadowed declaration is not global, e.g. a local variable shadows a parameter or another local variable .
+.It Fl Wsystem
+Show warnings in system headers.
+By default, no warnings in system headers are shown.
+.It Fl Wunreachable-code
+.No Warn when the compiler determines that a statement Po or in some cases a part thereof Pc will never be executed .
+Enabled by default.
+.It Fl Wunused
+.No Activate Fl Wunused-function , Wunused-label , Wunused-parameter , Wunused-value , Wunused-variable .
+.It Fl Wunused-label
+Warn whenever a label is declared but not used.
+Enabled by default.
+.It Fl Wunused-function
+Warn whenever a static function is declared but not defined or a non-inline static function is unused.
+.No To suppress this warning, cast the function to So Ft void Sc , e.g. Sq (void)fun .
+Enabled by default.
+.It Fl Wunused-parameter
+.No Warn when a parameter is never used or only ever read to calculate its own new value, e.g. Sq x\ =\ x\ +\ 1 .
+.No To suppress this warning, cast the parameter to So Ft void Sc , e.g. Sq (void)x .
+Enabled by default.
+.It Fl Wunused-value
+Warn whenever a statement computes a result that is explicitly not used.
+.No To suppress this warning, cast the expression to So Ft void Sc , e.g. Sq (void)(x\ +\ 1) .
+Enabled by default.
+.It Fl Wunused-variable
+.No Warn when a variable is never used or only ever read to calculate its own new value, e.g. Sq x\ =\ x\ +\ 1 .
+.No To suppress this warning, cast the variable to So Ft void Sc , e.g. Sq (void)x .
+Enabled by default.
+.It Fl w
+Suppress all warnings.
+.It Fl I Ns Ar dir , Fl I Ar dir
+.No Add the directory Ar dir No to the paths to be searched for include files .
+.It Fl L Ns Ar dir , Fl L Ar dir
+.No Add the directory Ar dir No to the paths to be searched for libraries .
+.It Fl D Ns Ar macro Ns Oo Cm = Ns Ar defn Oc , Fl D Ar macro Ns Op Cm = Ns Ar defn
+.No Define the preprocessor macro Ar macro No and set its expanded value to Ar defn .
+.No If Cm = Ns Ar defn No is not given, the macro will expand to Sq 1 .
+.It Fl U Ns Ar macro , Fl U Ar macro
+.No Undefine the preprocessor macro Ar macro .
+.It Fl f Ns Ar option
+Set a frontend or optimizer option.
+.No Use Fl fhelp No to get a list of supported optimizer options .
+.It Fl f Ns Oo Cm no- Oc Ns Cm diagnostics-show-option
+Show the switch, which controls the warning, after each warning.
+Default is on.
+.It Fl finput-charset= Ns Ar encoding
+Select the encoding of the input.
+Case is ignored.
+Supported values are:
+.Bl -tag -compact -width "ISO_8859-1:1987"
+.It Cm ISO_8859-1:1987
+.No aliases Cm CP819 , IBM819 , ISO-8859-1 , ISO8859-1 , ISO_8859-1 , csISOLatin1 , iso-ir-100 , l1 No and Cm latin1
+.It Cm ISO-8859-15
+.No aliases Cm ISO8859-15 , ISO_8859-15 No and Cm Latin-9
+.It Cm windows-1252
+.No alias Cm cp1252
+.It Cm UTF-8
+default
+.El
+.It Fl f Ns Oo Cm no- Oc Ns Cm show-column
+Show the column number in diagnostic messages.
+.It Fl fsigned-char
+.No Define So Ft char Sc to have the same range, representation and behaviour as Sq Ft signed char .
+.It Fl funsigned-char
+.No Define So Ft char Sc to have the same range, representation and behaviour as Sq Ft unsigned char .
+.It Fl m Ns Ar option
+Set a backend option.
+.No Use Fl mhelp No to get a list of supported options .
+.It Fl l Ns Ar library , Fl l Ar library
+Link with the specified library.
+.It Fl o Ns Ar outfile , Fl o Ar outfile
+Specify the output filename.
+This is only valid when using a single input filename.
+.Fl "" No as Ar outfile No uses stdout for output .
+.It Fl x Ns Ar language , Fl x Ar language
+Overwrite the language auto-detection for the following filenames by the
+specified
+.Ar language .
+Supported values are:
+.Bl -tag -compact -width "assembler-with-cpp"
+.It Cm assembler
+Assembler file
+.It Cm assembler-with-cpp
+Assembler file, which needs to be preprocessed
+.It Cm c
+.It Cm c-header
+C file
+.It Cm c++
+.It Cm c++-header
+C++ file
+.It Cm none
+Revert to auto-detection
+.El
+.It Fl Wl, Ns Ar option
+.No Pass Ar option No to the linker .
+.It Fl Wp, Ns Ar option
+.No Pass Ar option No to the preprocessor .
+.It Fl -sysroot= Ns Ar dir , Fl -sysroot Ar dir
+.No Use Ar dir No as prefix for all implicit include and library paths of the compiler driver as well as for all include and library paths, which start with Sq = .
+.No For include paths this option is superseded by Fl isysroot .
+.No By default no prefix is used and So = Sc is not replaced.
+.It Fl isysroot Ns Ar dir , Fl isysroot Ar dir
+.No Use Ar dir No as prefix for all implicit include paths of the compiler driver as well as for all include paths, which start with Sq = .
+.No this supersedes Fl -sysroot .
+.No By default no prefix is used and So = Sc is not replaced.
+.El
+.Sh SEE ALSO
+.Xr gcc 1 ,
+http://www.libfirm.org/
+.Sh BUGS
+Probably many - if you hit one, please report it.
+.Pp
+.Nm
+needs to support more switches for better GCC compatibility.
+.Pp
+This manual page is incomplete.
+.Sh AUTHORS
+.An -nosplit
+.Nm
+was written by
+.An Matthias Braun Aq matze@braunis.de ,
+.An Christoph Mallon Aq christoph.mallon@gmx.de
+and
+.An Michael Beck .
