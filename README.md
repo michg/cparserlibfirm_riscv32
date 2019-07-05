@@ -11,6 +11,7 @@ verilator (https://www.veripool.org/wiki/verilator) .
 
 To try rv32im:
 > cd samples/es
+
 > make -r -f makerv32im
 
 For running it on picorv32(python3 and iverilog installation required):
@@ -23,11 +24,13 @@ then run it:
 
 To try rv32imf:
 > cd samples/es
+
 > make -r -f makerv32imf
 
 For running it on pulpino(verilator installation required):
 first build the simulation:    
 > cd samples/es/verilator-model
+
 > make
 
 then run it:      
