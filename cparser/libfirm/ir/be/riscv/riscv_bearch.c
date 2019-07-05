@@ -32,6 +32,10 @@
 #include "riscv_transform.h"
 #include "target_t.h"
 #include "util.h"
+#include "irtools.h"
+#include "lc_opts_enum.h"
+
+bool use_softfloat = true;
 
 static ir_settings_arch_dep_t const riscv_arch_dep = {
 	.replace_muls         = true,
@@ -86,6 +90,7 @@ static void riscv_init(void)
 	ir_target.allow_ifconv       = riscv_ifconv;
 	ir_target.float_int_overflow = ir_overflow_min_max;
     ir_platform_set_va_list_type_pointer();
+    if(!use_softfloat) ir_platform.map_double_float  = true;
 }
 
 static void riscv_finish(void)
@@ -107,29 +112,39 @@ static void riscv_select_instructions(ir_graph *const irg)
 static ir_node *riscv_new_spill(ir_node *const value, ir_node *const after)
 {
 	ir_mode *const mode = get_irn_mode(value);
-	if (be_mode_needs_gp_reg(mode)) {
-		ir_node  *const block = get_block(after);
-		ir_graph *const irg   = get_irn_irg(after);
-		ir_node  *const nomem = get_irg_no_mem(irg);
-		ir_node  *const frame = get_irg_frame(irg);
+    ir_node  *const block = get_block(after);
+    ir_graph *const irg   = get_irn_irg(after);
+	ir_node  *const nomem = get_irg_no_mem(irg);
+	ir_node  *const frame = get_irg_frame(irg);
+	if (be_mode_needs_gp_reg(mode)) {		
 		ir_node  *const store = new_bd_riscv_sw(NULL, block, nomem, frame, value, NULL, 0);
 		sched_add_after(after, store);
 		return store;
 	}
+    if (mode_is_float(mode)) {
+        ir_node  *const store = new_bd_riscv_fsw(NULL, block, nomem, frame, value, NULL, 0);
+		sched_add_after(after, store);
+		return store;
+    }
 	TODO(value);
 }
 
 static ir_node *riscv_new_reload(ir_node *const value, ir_node *const spill, ir_node *const before)
 {
 	ir_mode *const mode = get_irn_mode(value);
+    ir_node  *const block = get_block(before);
+	ir_graph *const irg   = get_irn_irg(before);
+	ir_node  *const frame = get_irg_frame(irg);
 	if (be_mode_needs_gp_reg(mode)) {
-		ir_node  *const block = get_block(before);
-		ir_graph *const irg   = get_irn_irg(before);
-		ir_node  *const frame = get_irg_frame(irg);
 		ir_node  *const load  = new_bd_riscv_lw(NULL, block, spill, frame, NULL, 0);
 		sched_add_before(before, load);
 		return be_new_Proj(load, pn_riscv_lw_res);
 	}
+    if (mode_is_float(mode)) {
+        ir_node  *const load  = new_bd_riscv_flw(NULL, block, spill, frame, NULL, 0);
+		sched_add_before(before, load);
+		return be_new_Proj(load, pn_riscv_lw_res);
+    }
 	TODO(value);
 }
 
@@ -231,7 +246,10 @@ static void riscv_sp_sim(ir_node *const node, stack_pointer_state_t *const state
 		case iro_riscv_lw:
 		case iro_riscv_sb:
 		case iro_riscv_sh:
-		case iro_riscv_sw: {
+		case iro_riscv_sw:
+		case iro_riscv_fsw:
+		case iro_riscv_flw:
+		{
 			riscv_immediate_attr_t *const imm = get_riscv_immediate_attr(node);
 			ir_entity              *const ent = imm->ent;
 			if (ent && is_frame_type(get_entity_owner(ent))) {
@@ -308,8 +326,10 @@ static void riscv_lower_for_target(void)
 		be_after_transform(irg, "lower-copyb");
 	}
     
-    lower_floating_point();
-	be_after_irp_transform("lower-fp"); 
+    if (use_softfloat) {
+        lower_floating_point();
+        be_after_irp_transform("lower-fp"); 
+    }
     
     size_t s = 0; 
 	ir_builtin_kind  supported[8];
@@ -353,7 +373,17 @@ arch_isa_if_t const riscv32_isa_if = {
 	.get_op_estimated_cost = riscv_get_op_estimated_cost,
 };
 
-BE_REGISTER_MODULE_CONSTRUCTOR(be_init_arch_riscv)
-void be_init_arch_riscv(void)
-{
+
+static const lc_opt_table_entry_t riscv_options[] = {	
+	LC_OPT_ENT_BOOL    ("soft-float", "use softwarefloating point emulation", &use_softfloat),
+	LC_OPT_LAST
+}; 
+
+BE_REGISTER_MODULE_CONSTRUCTOR(be_init_arch_riscv32)
+void be_init_arch_riscv32(void)
+{ 
+    lc_opt_entry_t *be_grp = lc_opt_get_grp(firm_opt_get_root(), "be");
+	lc_opt_entry_t *riscv_grp = lc_opt_get_grp(be_grp, "riscv32");
+
+	lc_opt_add_table(riscv_grp, riscv_options); 
 }

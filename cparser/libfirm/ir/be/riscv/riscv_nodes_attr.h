@@ -24,6 +24,13 @@ typedef enum riscv_cond_t {
 	riscv_cc_geu,
 } riscv_cond_t;
 
+typedef enum riscv_condf_t {
+	/* Flipping the lowest bit negates the condition. */
+	riscv_cc_feq,	
+	riscv_cc_flt,	
+	riscv_cc_fle,	
+} riscv_condf_t;
+
 static inline riscv_cond_t riscv_negate_cond(riscv_cond_t const c)
 {
 	return (riscv_cond_t)(c ^ 1U);
@@ -39,6 +46,11 @@ typedef struct riscv_cond_attr_t {
 	riscv_attr_t attr;
 	riscv_cond_t cond;
 } riscv_cond_attr_t;
+
+typedef struct riscv_condf_attr_t {
+	riscv_attr_t attr;
+	riscv_condf_t cond;
+} riscv_condf_attr_t;
 
 typedef struct riscv_immediate_attr_t {
 	riscv_attr_t attr;
@@ -68,6 +80,11 @@ static inline riscv_cond_attr_t const *get_riscv_cond_attr_const(ir_node const *
 	return (riscv_cond_attr_t const*)get_irn_generic_attr_const(node);
 }
 
+static inline riscv_condf_attr_t const *get_riscv_condf_attr_const(ir_node const *const node)
+{
+	return (riscv_condf_attr_t const*)get_irn_generic_attr_const(node);
+}
+
 static inline riscv_immediate_attr_t *get_riscv_immediate_attr(ir_node *const node)
 {
 	return (riscv_immediate_attr_t*)get_irn_generic_attr(node);
@@ -89,5 +106,6 @@ static inline riscv_farith_attr_t const *get_riscv_farith_attr_const(ir_node con
 }
 
 char const *riscv_get_cond_name(riscv_cond_t cond);
+char const *riscv_get_condf_name(riscv_condf_t cond);
 
 #endif

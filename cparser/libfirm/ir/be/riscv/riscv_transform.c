@@ -17,6 +17,7 @@
 #include "riscv_bearch_t.h"
 #include "riscv_cconv.h"
 #include "util.h"
+#include "platform_t.h" 
 
 static riscv_calling_convention_t cur_cconv;
 
@@ -39,6 +40,19 @@ static unsigned const callee_saves[] = {
 	REG_X25,
 	REG_X26,
 	REG_X27,
+    REG_F8,
+    REG_F9,
+    REG_F18,
+    REG_F19,
+    REG_F20,
+    REG_F21,
+    REG_F22,
+    REG_F23,
+    REG_F24,
+    REG_F25,
+    REG_F26,
+    REG_F27
+    
 };
 
 static unsigned const caller_saves[] = {
@@ -57,6 +71,26 @@ static unsigned const caller_saves[] = {
 	REG_X29,
 	REG_X30,
 	REG_X31,
+    REG_F0,
+    REG_F1,
+    REG_F2,
+    REG_F3,
+    REG_F4,
+    REG_F5,
+    REG_F6,
+    REG_F7,
+    REG_F10,
+    REG_F11,
+    REG_F12,
+    REG_F13,
+    REG_F14,
+    REG_F15,
+    REG_F16,
+    REG_F17,
+    REG_F28,
+    REG_F29,
+    REG_F30,
+    REG_F31
 };
 
 static unsigned const regs_param_gp[] = {
@@ -68,6 +102,17 @@ static unsigned const regs_param_gp[] = {
 	REG_X15,
 	REG_X16,
 	REG_X17,
+}; 
+
+static unsigned const regs_param_fp[] = {
+	REG_F10,
+	REG_F11,
+	REG_F12,
+	REG_F13,
+	REG_F14,
+	REG_F15,
+	REG_F16,
+	REG_F17,
 }; 
 
 static ir_node              *initial_va_list;
@@ -288,10 +333,11 @@ static ir_node *gen_Add(ir_node *const node)
 	ir_node *const l    = get_Add_left(node);
 	ir_node *const r    = get_Add_right(node);
 	ir_mode *const mode = get_irn_mode(node);
+	dbg_info *const dbgi  = get_irn_dbg_info(node);
+	ir_node  *const block = be_transform_nodes_block(node);
+	ir_node  *const new_l = be_transform_node(l);
 	if (be_mode_needs_gp_reg(mode)) {
-		dbg_info *const dbgi  = get_irn_dbg_info(node);
-		ir_node  *const block = be_transform_nodes_block(node);
-		ir_node  *const new_l = be_transform_node(l);
+		
 		if (is_Const(r)) {
 			long const val = get_Const_long(r);
 			if (is_simm12(val))
@@ -300,6 +346,8 @@ static ir_node *gen_Add(ir_node *const node)
 		ir_node *const new_r = be_transform_node(r);
 		return new_bd_riscv_add(dbgi, block, new_l, new_r);
 	}
+    ir_node *const new_r = be_transform_node(r);
+    if (mode_is_float(mode)) return new_bd_riscv_fadd(dbgi, block, new_l, new_r);
 	TODO(node);
 }
 
@@ -392,10 +440,19 @@ static ir_node *gen_Builtin(ir_node *const node)
 static ir_node *gen_Call(ir_node *const node)
 {
 	ir_graph *const irg = get_irn_irg(node);
-
+    ir_type *const fun_type = get_Call_type(node);
 	unsigned                          p        = n_riscv_jal_first_argument;
 	unsigned                    const n_params = get_Call_n_params(node);
-	unsigned                    const n_ins    = p + 1 + n_params;
+    riscv_calling_convention_t cconv;
+	riscv_determine_calling_convention(&cconv, fun_type);
+    unsigned varfargs = 0;
+    if (is_method_variadic(fun_type)) {        
+            for (size_t i = 0; i != n_params; ++i) {
+                riscv_reg_or_slot_t const *const param = &cconv.parameters[i];
+                if(param->reg->cls == &riscv_reg_classes[CLASS_riscv_fp]) varfargs++;
+        }
+    }
+	unsigned                    const n_ins    = p + 1 + n_params + varfargs;
 	arch_register_req_t const **const reqs     = be_allocate_in_reqs(irg, n_ins);
 	ir_node                          *ins[n_ins];
 
@@ -410,11 +467,10 @@ static ir_node *gen_Call(ir_node *const node)
 		++p;
 	}
 
-	ir_type *const fun_type = get_Call_type(node);
+	
 	record_returns_twice(irg, fun_type);
 
-	riscv_calling_convention_t cconv;
-	riscv_determine_calling_convention(&cconv, fun_type);
+	
 
 	ir_node *mems[1 + cconv.n_mem_param];
 	unsigned m = 0;
@@ -433,16 +489,23 @@ static ir_node *gen_Call(ir_node *const node)
 	dbg_info *const dbgi = get_irn_dbg_info(node);
 	for (size_t i = 0; i != n_params; ++i) {
 		ir_node *const arg = get_Call_param(node, i);
-		ir_node *const val = extend_value(arg);
+		ir_node *const val = extend_value(arg);        
 
 		riscv_reg_or_slot_t const *const param = &cconv.parameters[i];
 		if (param->reg) {
 			ins[p]  = val;
 			reqs[p] = param->reg->single_req;
 			++p;
+            if(ir_platform.map_double_float && is_method_variadic(fun_type) && (param->reg->cls == &riscv_reg_classes[CLASS_riscv_fp])) {                
+                ins[p] = new_bd_riscv_fmvxs(dbgi, block, val);
+                reqs[p] = riscv_registers[param->reg->global_index+32].single_req;
+                ++p;
+            }             
 		} else {
 			ir_node *const nomem = get_irg_no_mem(irg);
-			mems[m++] = new_bd_riscv_sw(dbgi, block, nomem, call_frame, val, NULL, param->offset);
+			mems[m++] = new_bd_riscv_sw(dbgi, block, nomem, call_frame, val, NULL, param->offset); 
+            //if(param->reg->cls == &riscv_reg_classes[CLASS_riscv_gp]) mems[m++] = new_bd_riscv_sw(dbgi, block, nomem, call_frame, val, NULL, param->offset);
+            //if(param->reg->cls == &riscv_reg_classes[CLASS_riscv_fp]) mems[m++] = new_bd_riscv_fsw(dbgi, block, nomem, call_frame, val, NULL, param->offset);
 		}
 	}
 
@@ -454,7 +517,7 @@ static ir_node *gen_Call(ir_node *const node)
 	unsigned const n_res = pn_riscv_jal_first_result + ARRAY_SIZE(caller_saves);
 
 	ir_node *const jal = callee ?
-		new_bd_riscv_jal( dbgi, block, p, ins, reqs, n_res, callee, 0) :
+		new_bd_riscv_jal(dbgi, block, p, ins, reqs, n_res, callee, 0) :
 		new_bd_riscv_jalr(dbgi, block, p, ins, reqs, n_res);
 
 	arch_set_irn_register_req_out(jal, pn_riscv_jal_M, arch_memory_req);
@@ -462,6 +525,7 @@ static ir_node *gen_Call(ir_node *const node)
 	for (size_t i = 0; i != ARRAY_SIZE(caller_saves); ++i) {
 		arch_set_irn_register_req_out(jal, pn_riscv_jal_first_result + i, riscv_registers[caller_saves[i]].single_req);
 	}
+  
 
 	ir_node *const jal_stack = be_new_Proj(jal, pn_riscv_jal_stack);
 	ir_node *const new_stack = be_new_IncSP(block, jal_stack, -frame_size, 0);
@@ -515,15 +579,38 @@ static ir_node *gen_Cmp(ir_node *const node)
 	TODO(node);
 }
 
+static ir_node *create_constant_from_immediate(ir_node *node, int val)
+{
+	dbg_info *dbgi  = get_irn_dbg_info(node);
+	ir_node  *block = get_nodes_block(node);
+
+	riscv_hi_lo_imm imm = calc_hi_lo(val);
+	ir_node      *res;
+	if (imm.hi != 0) {
+		res = new_bd_riscv_lui(dbgi, block, NULL, imm.hi);
+		arch_set_irn_register(res, &riscv_registers[REG_X5]);
+		sched_add_before(node, res);
+	} else {
+		ir_graph *const irg = get_irn_irg(node);
+		res = get_Start_zero(irg);
+	}
+	if (imm.lo != 0) {
+		res = new_bd_riscv_addi(dbgi, block, res, NULL, imm.lo);
+		arch_set_irn_register(res, &riscv_registers[REG_X5]);
+		sched_add_before(node, res);
+	}
+	return res;
+} 
+
 static ir_node *gen_Cond(ir_node *const node)
 {
 	ir_node *const sel = get_Cond_selector(node);
 	if (is_Cmp(sel)) {
 		ir_node       *l    = get_Cmp_left(sel);
 		ir_mode *const mode = get_irn_mode(l);
+        ir_node          *r   = get_Cmp_right(sel);
 		if (be_mode_needs_gp_reg(mode)) {
-			ir_relation const rel = get_Cmp_relation(sel) & ir_relation_less_equal_greater;
-			ir_node          *r   = get_Cmp_right(sel);
+			ir_relation const rel = get_Cmp_relation(sel) & ir_relation_less_equal_greater;			
 			switch (rel) {
 			{
 				riscv_cond_t cc;
@@ -569,36 +656,76 @@ bcc:;
 				panic("unexpected relation");
 			}
 		}
-	}
+        if(mode_is_float(mode)) {
+            ir_relation const rel = get_Cmp_relation(sel);
+            riscv_cond_t bcc = riscv_cc_ne;
+            switch (rel) {
+            {
+                riscv_condf_t cc;                
+            case ir_relation_unordered:
+                bcc = ir_relation_equal;
+            case ir_relation_equal:
+                cc = riscv_cc_feq;
+                goto bccf;
+			case ir_relation_less_greater:
+                cc = riscv_cc_feq;
+                goto xbccf;
+            case ir_relation_less:
+                cc = riscv_cc_flt;
+                goto bccf;
+            case ir_relation_greater_equal:
+                cc = riscv_cc_flt;
+                goto xbccf;
+             case ir_relation_less_equal:
+                cc = riscv_cc_fle;
+                goto bccf;
+            case ir_relation_greater:
+                cc = riscv_cc_fle;
+                goto xbccf;
+            
+                
+			xbccf:;
+                ir_node *const t = l;
+				l = r;
+				r = t;
+            bccf:;
+				dbg_info *const dbgi  = get_irn_dbg_info(node);
+				ir_node  *const block = be_transform_nodes_block(node);
+				ir_node  *const new_l = extend_value(l);
+				ir_node  *const new_r = extend_value(r);
+				ir_node *const res = new_bd_riscv_cmpf(dbgi, block, new_l, new_r, cc);
+				ir_node *const zero = create_constant_from_immediate(node, 0);
+            return new_bd_riscv_bcc(dbgi, block, res, zero, bcc);
+            }
+            }
+        }
 	TODO(node);
+    }
 }
 
 static ir_node *gen_Const(ir_node *const node)
 {
 	ir_mode *const mode = get_irn_mode(node);
-	if (be_mode_needs_gp_reg(mode)) {
-		long const val = get_Const_long(node);
-		if (val == 0) {
-			ir_graph *const irg = get_irn_irg(node);
-			return get_Start_zero(irg);
-		} else {
-			dbg_info *const dbgi  = get_irn_dbg_info(node);
-			ir_node  *const block = be_transform_nodes_block(node);
+	ir_tarval *tv     = get_Const_tarval(node);
+	if(ir_platform.map_double_float && mode_is_float(mode)) tv = tarval_convert_to(tv, mode_F); 
+	int32_t val = be_get_tv_bits32(tv, 0);
 
-			riscv_hi_lo_imm imm = calc_hi_lo((int32_t)val);
-			ir_node      *res;
-			if (imm.hi != 0) {
-				res = new_bd_riscv_lui(dbgi, block, NULL, imm.hi);
-			} else {
-				ir_graph *const irg = get_irn_irg(node);
-				res = get_Start_zero(irg);
-			}
-			if (imm.lo != 0)
-				res = new_bd_riscv_addi(dbgi, block, res, NULL, imm.lo);
-			return res;
-		}
+	dbg_info *const dbgi  = get_irn_dbg_info(node);
+	ir_node  *const block = be_transform_nodes_block(node);
+
+	riscv_hi_lo_imm imm = calc_hi_lo((int32_t)val);
+	ir_node      *res;
+	if (imm.hi != 0) {
+		res = new_bd_riscv_lui(dbgi, block, NULL, imm.hi);
+	} else {
+		ir_graph *const irg = get_irn_irg(node);
+		res = get_Start_zero(irg);
 	}
-	TODO(node);
+	if (imm.lo != 0)
+		res = new_bd_riscv_addi(dbgi, block, res, NULL, imm.lo);
+	if (mode_is_float(mode)) res = new_bd_riscv_fmvsx(dbgi, block, res);
+		return res;
+    TODO(node);
 }
 
 static ir_node *gen_Conv(ir_node *const node)
@@ -606,27 +733,33 @@ static ir_node *gen_Conv(ir_node *const node)
 	ir_node *const op      = get_Conv_op(node);
 	ir_mode *const op_mode = get_irn_mode(op);
 	ir_mode *const mode    = get_irn_mode(node);
-	if (be_mode_needs_gp_reg(op_mode) && be_mode_needs_gp_reg(mode)) {
-		dbg_info *const dbgi = get_irn_dbg_info(node);
+    ir_node  *const block = be_transform_nodes_block(node);
+    dbg_info *const dbgi = get_irn_dbg_info(node);
+    ir_node *new_op = be_transform_node(op); 
+	if (be_mode_needs_gp_reg(op_mode) && be_mode_needs_gp_reg(mode)) {		
 		return make_extension(dbgi, op, get_mode_size_bits(mode));
 	}
+    if(mode_is_float(op_mode) && be_mode_needs_gp_reg(mode)) return(new_bd_riscv_fcvtws(dbgi, block, new_op));
+    else if (mode_is_float(mode) && be_mode_needs_gp_reg(op_mode)) return(new_bd_riscv_fcvtsw(dbgi, block, new_op));
+	else return be_transform_node(op); 
 	TODO(node);
 }
 
 static ir_node *gen_Div(ir_node *const node)
 {
 	ir_mode *const mode = get_Div_resmode(node);
-	if (be_mode_needs_gp_reg(mode) && get_mode_size_bits(mode) == RISCV_MACHINE_SIZE) {
-		dbg_info *const dbgi  = get_irn_dbg_info(node);
-		ir_node  *const block = be_transform_nodes_block(node);
-		ir_node  *const l     = be_transform_node(get_Div_left(node));
-		ir_node  *const r     = be_transform_node(get_Div_right(node));
+	dbg_info *const dbgi  = get_irn_dbg_info(node);
+	ir_node  *const block = be_transform_nodes_block(node);
+	ir_node  *const l     = be_transform_node(get_Div_left(node));
+	ir_node  *const r     = be_transform_node(get_Div_right(node));
+    if (be_mode_needs_gp_reg(mode) && get_mode_size_bits(mode) == RISCV_MACHINE_SIZE) {		
 		if (mode_is_signed(mode)) {
 			return new_bd_riscv_div(dbgi, block, l, r);
 		} else {
 			return new_bd_riscv_divu(dbgi, block, l, r);
 		}
 	}
+    if (mode_is_float(mode)) return new_bd_riscv_fdiv(dbgi, block, l, r);
 	TODO(node);
 }
 
@@ -655,6 +788,10 @@ typedef ir_node *cons_loadop(dbg_info*, ir_node*, ir_node*, ir_node*, ir_entity*
 static ir_node *gen_Load(ir_node *const node)
 {
 	ir_mode *const mode = get_Load_mode(node);
+    dbg_info  *const dbgi  = get_irn_dbg_info(node);
+	ir_node   *const block = be_transform_nodes_block(node);
+	ir_node   *const mem   = be_transform_node(get_Load_mem(node));
+	riscv_addr const addr  = make_addr(get_Load_ptr(node));
 	if (be_mode_needs_gp_reg(mode)) {
 		cons_loadop   *cons;
 		unsigned const size = get_mode_size_bits(mode);
@@ -667,12 +804,9 @@ static ir_node *gen_Load(ir_node *const node)
 		} else {
 			panic("invalid load");
 		}
-		dbg_info  *const dbgi  = get_irn_dbg_info(node);
-		ir_node   *const block = be_transform_nodes_block(node);
-		ir_node   *const mem   = be_transform_node(get_Load_mem(node));
-		riscv_addr const addr  = make_addr(get_Load_ptr(node));
 		return cons(dbgi, block, mem, addr.base, addr.ent, addr.val);
 	}
+    if (mode_is_float(mode)) return new_bd_riscv_flw(dbgi, block, mem, addr.base, addr.ent, addr.val);
 	TODO(node);
 }
 
@@ -691,14 +825,15 @@ static ir_node *gen_Minus(ir_node *const node)
 {
 	ir_node *const val  = get_Minus_op(node);
 	ir_mode *const mode = get_irn_mode(node);
-	if (be_mode_needs_gp_reg(mode)) {
-		dbg_info *const dbgi  = get_irn_dbg_info(node);
-		ir_node  *const block = be_transform_nodes_block(node);
-		ir_graph *const irg   = get_irn_irg(node);
-		ir_node  *const new_l = get_Start_zero(irg);
-		ir_node  *const new_r = be_transform_node(val);
+	dbg_info *const dbgi  = get_irn_dbg_info(node);
+	ir_node  *const block = be_transform_nodes_block(node);
+	ir_graph *const irg   = get_irn_irg(node);
+	ir_node  *const new_r = be_transform_node(val);
+	if (be_mode_needs_gp_reg(mode)) {		
+		ir_node  *const new_l = get_Start_zero(irg);	
 		return new_bd_riscv_sub(dbgi, block, new_l, new_r);
 	}
+	if(mode_is_float(mode)) return new_bd_riscv_fneg(dbgi, block, new_r);
 	TODO(node);
 }
 
@@ -722,13 +857,14 @@ static ir_node *gen_Mod(ir_node *const node)
 static ir_node *gen_Mul(ir_node *const node)
 {
 	ir_mode *const mode = get_irn_mode(node);
-	if (be_mode_needs_gp_reg(mode)) {
-		dbg_info *const dbgi  = get_irn_dbg_info(node);
-		ir_node  *const block = be_transform_nodes_block(node);
-		ir_node  *const l     = be_transform_node(get_Mul_left(node));
-		ir_node  *const r     = be_transform_node(get_Mul_right(node));
+    dbg_info *const dbgi  = get_irn_dbg_info(node);
+    ir_node  *const block = be_transform_nodes_block(node);
+	ir_node  *const l     = be_transform_node(get_Mul_left(node));
+	ir_node  *const r     = be_transform_node(get_Mul_right(node));
+	if (be_mode_needs_gp_reg(mode)) {		
 		return new_bd_riscv_mul(dbgi, block, l, r);
 	}
+    if (mode_is_float(mode)) return new_bd_riscv_fmul(dbgi, block, l, r);
 	TODO(node);
 }
 
@@ -788,6 +924,8 @@ static ir_node *gen_Phi(ir_node *const node)
 		req = &riscv_class_reg_req_gp;
 	} else if (mode == mode_M) {
 		req = arch_memory_req;
+	} else if (mode_is_float(mode)) {
+		req = &riscv_class_reg_req_fp; ;
 	} else {
 		panic("unhandled mode");
 	}
@@ -1075,11 +1213,14 @@ static ir_node *gen_Start(ir_node *const node)
 }
 
 typedef ir_node *cons_storeop(dbg_info*, ir_node*, ir_node*, ir_node*, ir_node*, ir_entity*, int32_t);
-
 static ir_node *gen_Store(ir_node *const node)
 {
 	ir_node       *old_val = get_Store_value(node);
 	ir_mode *const mode    = get_irn_mode(old_val);
+    dbg_info  *const dbgi  = get_irn_dbg_info(node);
+    ir_node   *const block = be_transform_nodes_block(node);
+	ir_node   *const mem   = be_transform_node(get_Store_mem(node));
+    riscv_addr const addr  = make_addr(get_Store_ptr(node));
 	if (be_mode_needs_gp_reg(mode)) {
 		cons_storeop  *cons;
 		unsigned const size = get_mode_size_bits(mode);
@@ -1092,13 +1233,15 @@ static ir_node *gen_Store(ir_node *const node)
 		} else {
 			panic("invalid store");
 		}
-		old_val = be_skip_downconv(old_val, false);
-		dbg_info  *const dbgi  = get_irn_dbg_info(node);
-		ir_node   *const block = be_transform_nodes_block(node);
-		ir_node   *const mem   = be_transform_node(get_Store_mem(node));
+		old_val = be_skip_downconv(old_val, false);		
 		ir_node   *const val   = be_transform_node(old_val);
-		riscv_addr const addr  = make_addr(get_Store_ptr(node));
 		return cons(dbgi, block, mem, addr.base, val, addr.ent, addr.val);
+		
+	}
+    if (mode_is_float(mode)) {	
+	     
+		ir_node   *const val   = be_transform_node(old_val);
+		return new_bd_riscv_fsw(dbgi, block, mem, addr.base, val, addr.ent, addr.val);
 	}
 	TODO(node);
 }
@@ -1108,13 +1251,16 @@ static ir_node *gen_Sub(ir_node *const node)
 	ir_node *const l    = get_Sub_left(node);
 	ir_node *const r    = get_Sub_right(node);
 	ir_mode *const mode = get_irn_mode(node);
-	if (be_mode_needs_gp_reg(mode)) {
-		dbg_info *const dbgi  = get_irn_dbg_info(node);
-		ir_node  *const block = be_transform_nodes_block(node);
-		ir_node  *const new_l = be_transform_node(l);
+	dbg_info *const dbgi  = get_irn_dbg_info(node);
+	ir_node  *const block = be_transform_nodes_block(node);
+	ir_node  *const new_l = be_transform_node(l);
+    if (be_mode_needs_gp_reg(mode)) {
+		
 		ir_node  *const new_r = be_transform_node(r);
 		return new_bd_riscv_sub(dbgi, block, new_l, new_r);
 	}
+    ir_node *const new_r = be_transform_node(r);
+    if (mode_is_float(mode)) return new_bd_riscv_fsub(dbgi, block, new_l, new_r);
 	TODO(node);
 }
 
@@ -1146,9 +1292,11 @@ static ir_node *gen_Unknown(ir_node *const node)
 	ir_mode *const mode  = get_irn_mode(node);
 	if (be_mode_needs_gp_reg(mode)) {
 		return be_new_Unknown(block, &riscv_class_reg_req_gp);
-	} else {
-		TODO(node);
-	}
+	} else if (mode_is_float(mode)) {
+        return be_new_Unknown(block, &riscv_class_reg_req_fp);
+    } else {
+       panic("unexpected Unknown mode");
+    }
 }
 
 
@@ -1167,6 +1315,28 @@ static ir_node *gen_riscv_sltu_t(ir_node *node)
 	                                         new_right);
 	return res;
 } 
+
+static ir_node *gen_Bitcast(ir_node *const node)
+{
+	ir_node  *const op        = get_Bitcast_op(node);
+	dbg_info *const dbgi      = get_irn_dbg_info(node);
+	ir_mode  *const dst_mode  = get_irn_mode(node);
+	ir_mode  *const src_mode  = get_irn_mode(op);
+	bool      const dst_float = mode_is_float(dst_mode);
+	bool      const src_float = mode_is_float(src_mode);
+	ir_node  *const be_op     = be_transform_node(op);
+	ir_node  *const be_block  = get_nodes_block(be_op);
+
+
+	if (src_float && !dst_float) {
+		return new_bd_riscv_fmvxs(dbgi, be_block, be_op);
+	} else if (!src_float && dst_float) {
+		return new_bd_riscv_fmvsx(dbgi, be_block, be_op);
+	} else {
+		panic("unhandled bitcast modes: %+F to %+F\n", src_mode, dst_mode);
+	}
+} 
+
 static void riscv_register_transformers(void)
 {
 	be_start_transform_setup();
@@ -1176,6 +1346,7 @@ static void riscv_register_transformers(void)
 	be_set_transform_function(op_Address, gen_Address);
 	be_set_transform_function(op_And,     gen_And);
 	be_set_transform_function(op_Builtin, gen_Builtin);
+    be_set_transform_function(op_Bitcast, gen_Bitcast);
 	be_set_transform_function(op_Call,    gen_Call);
 	be_set_transform_function(op_Cmp,     gen_Cmp);
 	be_set_transform_function(op_Cond,    gen_Cond);
@@ -1205,7 +1376,7 @@ static void riscv_register_transformers(void)
 	be_set_transform_function(op_Switch,  gen_Switch);
 	be_set_transform_function(op_Unknown, gen_Unknown);
 
-        be_set_transform_function(op_riscv_sltu_t,   gen_riscv_sltu_t); 
+	be_set_transform_function(op_riscv_sltu_t,   gen_riscv_sltu_t); 
 	be_set_transform_proj_function(op_Builtin, gen_Proj_Builtin);
 	be_set_transform_proj_function(op_Call,    gen_Proj_Call);
 	be_set_transform_proj_function(op_Div,     gen_Proj_Div);

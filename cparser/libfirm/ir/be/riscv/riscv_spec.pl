@@ -4,6 +4,7 @@
 $arch = "riscv";
 
 my $mode_gp = "mode_Iu";
+my $mode_fp = "mode_F";
 
 %reg_classes = (
 	gp => {
@@ -43,11 +44,50 @@ my $mode_gp = "mode_Iu";
 			{ name => "x31",   encoding => 31 },
 		]
 	},
+     fp => {
+		mode => $mode_fp,
+		registers => [
+			{ name => "f0",  encoding =>  0, dwarf => 32 },
+			{ name => "f1",  encoding =>  1, dwarf => 33 },
+			{ name => "f2",  encoding =>  2, dwarf => 34 },
+			{ name => "f3",  encoding =>  3, dwarf => 35 },
+			{ name => "f4",  encoding =>  4, dwarf => 36 },
+			{ name => "f5",  encoding =>  5, dwarf => 37 },
+			{ name => "f6",  encoding =>  6, dwarf => 38 },
+			{ name => "f7",  encoding =>  7, dwarf => 39 },
+			{ name => "f8",  encoding =>  8, dwarf => 40 },
+			{ name => "f9",  encoding =>  9, dwarf => 41 },
+			{ name => "f10", encoding => 10, dwarf => 42 },
+			{ name => "f11", encoding => 11, dwarf => 43 },
+			{ name => "f12", encoding => 12, dwarf => 44 },
+			{ name => "f13", encoding => 13, dwarf => 45 },
+			{ name => "f14", encoding => 14, dwarf => 46 },
+			{ name => "f15", encoding => 15, dwarf => 47 },
+			{ name => "f16", encoding => 16, dwarf => 48 },
+			{ name => "f17", encoding => 17, dwarf => 49 },
+			{ name => "f18", encoding => 18, dwarf => 50 },
+			{ name => "f19", encoding => 19, dwarf => 51 },
+			{ name => "f20", encoding => 20, dwarf => 52 },
+			{ name => "f21", encoding => 21, dwarf => 53 },
+			{ name => "f22", encoding => 22, dwarf => 54 },
+			{ name => "f23", encoding => 23, dwarf => 55 },
+			{ name => "f24", encoding => 24, dwarf => 56 },
+			{ name => "f25", encoding => 25, dwarf => 57 },
+			{ name => "f26", encoding => 26, dwarf => 58 },
+			{ name => "f27", encoding => 27, dwarf => 59 },
+			{ name => "f28", encoding => 28, dwarf => 60 },
+			{ name => "f29", encoding => 29, dwarf => 61 },
+			{ name => "f30", encoding => 30, dwarf => 62 },
+			{ name => "f31", encoding => 31, dwarf => 63 },
+		]
+	}  
 );
 
 %init_attr = (
 	riscv_attr_t => "",
 	riscv_cond_attr_t =>
+		"attr->cond = cond;",
+    riscv_condf_attr_t =>
 		"attr->cond = cond;",
 	riscv_immediate_attr_t =>
 		"attr->ent = ent;\n".
@@ -108,6 +148,15 @@ my $storeOp = {
 	emit      => "{name}\t%S2, %A",
 };
 
+my $binopf = {
+	irn_flags => [ "rematerializable" ],
+	in_reqs   => [ "cls-fp", "cls-fp" ],
+	out_reqs  => [ "cls-fp" ],
+	ins       => [ "left", "right" ],
+	outs      => [ "res" ],
+	emit      => '{name}.s\t%D0, %S0, %S1',
+};  
+
 %nodes = (
 
 add => { template => $binOp },
@@ -118,6 +167,10 @@ and => { template => $binOp },
 
 andi => { template => $immediateOp },
 
+fadd => { template => $binopf }, 
+fsub => { template => $binopf }, 
+fmul => { template => $binopf },
+fdiv => { template => $binopf },  
 
 sltu_t => {
 	ins       => [ "left", "right" ],
@@ -135,6 +188,18 @@ bcc => {
 	outs      => [ "false", "true" ],
 	attr_type => "riscv_cond_attr_t",
 	attr      => "riscv_cond_t const cond",
+},
+
+cmpf => {
+	state     => "pinned",
+	in_reqs   => [ "cls-fp", "cls-fp" ],
+	ins       => [ "left", "right" ],
+	out_reqs  => [ "cls-gp" ],
+	outs      => [ "res" ],
+    #out_reqs  => ["exec", "exec" ],
+	#outs      => ["false", "true" ],
+	attr_type => "riscv_condf_attr_t",
+	attr      => "riscv_condf_t const cond",
 },
 
 div => { template => $binOp, },
@@ -264,4 +329,65 @@ FrameAddr => {
 	attr_type => "riscv_immediate_attr_t",
 },
 
+flw => {
+	state     => "exc_pinned",
+	in_reqs   => [ "mem", "cls-gp" ],
+	out_reqs  => [ "mem", "cls-fp" ],
+	ins       => [ "mem", "base" ],
+	outs      => [ "M", "res" ],
+	attr_type => "riscv_immediate_attr_t",
+	attr      => "ir_entity *const ent, int32_t const val",
+	emit      => "flw\t%D1, %A",
+},
+fsw => {
+	state     => "exc_pinned",
+	in_reqs   => [ "mem", "cls-gp", "cls-fp" ],
+	out_reqs  => [ "mem" ],
+	ins       => [ "mem", "base", "value" ],
+	outs      => [ "M" ],
+	attr_type => "riscv_immediate_attr_t",
+	attr      => "ir_entity *const ent, int32_t const val",
+	emit      => "fsw\t%S2, %A",
+},
+fmvxs => {
+	irn_flags => [ "rematerializable" ],
+	in_reqs   => [ "cls-fp" ],
+	out_reqs  => [ "cls-gp" ],
+	ins       => [ "left" ],
+	outs      => [ "res" ],	
+	emit      => "fmv.x.s\t%D0, %S0",
+},
+fmvsx => {
+	irn_flags => [ "rematerializable" ],
+	in_reqs   => [ "cls-gp" ],
+	out_reqs  => [ "cls-fp" ],
+	ins       => [ "left" ],
+	outs      => [ "res" ],	
+	emit      => "fmv.s.x\t%D0, %S0",
+},
+fcvtws => {
+	irn_flags => [ "rematerializable" ],
+	in_reqs   => [ "cls-fp" ],
+	out_reqs  => [ "cls-gp" ],
+	ins       => [ "left" ],
+	outs      => [ "res" ],	
+	emit      => "fcvt.w.s\t%D0, %S0",
+},
+fcvtsw => {
+	irn_flags => [ "rematerializable" ],
+	in_reqs   => [ "cls-gp" ],
+	out_reqs  => [ "cls-fp" ],
+	ins       => [ "left" ],
+	outs      => [ "res" ],	
+	emit      => "fcvt.s.w\t%D0, %S0",
+},
+fneg => {
+	irn_flags => [ "rematerializable" ],
+	in_reqs   => [ "cls-fp" ],
+	out_reqs  => [ "cls-fp" ],
+	ins       => [ "left" ],
+	outs      => [ "res" ],	
+	emit      => "fneg.s\t%D0, %S0",
+},
+ 
 );

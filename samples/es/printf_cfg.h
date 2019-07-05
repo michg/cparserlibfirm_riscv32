@@ -68,7 +68,9 @@ Set some options that the C pre-processor will not tell us about.
 *************************************************************************/
 
 // Does the compiler support double precision or silently degrade to single?
-//#define NO_DOUBLE_PRECISION
+#ifndef  DOUBLE_PRECISION
+    #define NO_DOUBLE_PRECISION
+#endif
 
 /*************************************************************************
 Formatted item width

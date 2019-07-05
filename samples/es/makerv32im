@@ -1,0 +1,46 @@
+RESDIR = result_rv32im/
+CC = ../../cparser/build/debug/cparser
+AS = ../../binutils/as/as
+AR = ../../binutils/ar/ar
+LD = ../../binutils/ld/ld
+CFLAGS = -S --target=riscv32 -I include -include sys/param.h -fbuiltin
+LDFLAGS = -l $(RESDIR)libmathsf.a -l $(RESDIR)libfloat.a
+LIBS = $(RESDIR)libfloat.a $(RESDIR)libmathsf.a
+
+CSRCS = io.c es.c
+ASRCS = start.s mulhw.s divhw.s
+OSRCS = start.o mulhw.o divhw.o io.o es.o
+OBJS = $(addprefix $(RESDIR), $(OSRCS))
+BIN = $(RESDIR)firmware.bin
+
+.PHONY:		all
+
+.PRECIOUS: $(RESDIR)%.s
+
+all: $(RESDIR) $(LIBS) $(BIN)
+
+$(LIBS):
+	make -r -C libfloat
+	make -r -C libmath -f makerv32im
+    
+
+$(RESDIR):
+	mkdir -p $@ 
+
+$(RESDIR)%.s:%.c
+	export CPARSER_PP=cpp; \
+	$(CC) $(CFLAGS) -o $@ $<
+
+$(RESDIR)%.o:%.s
+	$(AS) -o $@ $<
+
+$(RESDIR)%.o:$(RESDIR)%.s
+	$(AS) -o $@ $<
+
+$(BIN):$(OBJS)
+	$(LD) -h -o $@ $(LDFLAGS) $^
+	python3 mkhex.py $(RESDIR)firmware
+ 
+
+clean:
+	rm -f -r $(RESDIR)

@@ -1,2 +1,2 @@
-iverilog -o simv -c args.f -D MEM_FILENAME=\"result/firmware.hex\"
+iverilog -o simv -c args.f -D MEM_FILENAME=\"result_rv32im/firmware.hex\"
 

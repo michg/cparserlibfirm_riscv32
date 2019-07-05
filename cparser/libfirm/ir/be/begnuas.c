@@ -702,7 +702,7 @@ const char *be_gas_insn_label_prefix(void)
 static void emit_init_expression(ir_node *const init)
 {
 	ir_mode *mode = get_irn_mode(init);
-
+ 
 	switch (get_irn_opcode(init)) {
 	case iro_Conv:
 		emit_init_expression(get_Conv_op(init));
@@ -710,8 +710,12 @@ static void emit_init_expression(ir_node *const init)
 
 	case iro_Const: {
 		/* it's an arithmetic value */
-		int        const bytes = get_mode_size_bytes(mode);
-		ir_tarval *const tv    = get_Const_tarval(init);
+		ir_tarval *tv    = get_Const_tarval(init);
+		int bytes = get_mode_size_bytes(mode);	
+		if(ir_platform.map_double_float && mode_is_float(mode)) {
+			tv = tarval_convert_to(tv, mode_F);
+		    bytes = 4;
+		}
 		emit_tv(tv, 0, bytes);
 		return;
 	}
@@ -1069,6 +1073,7 @@ static void emit_ir_initializer(normal_or_bitfield *vals,
 static void emit_tarval_data(ir_type *type, ir_tarval *tv)
 {
 	size_t size = get_type_size(type);
+	ir_mode *const mode = get_type_mode(type); 
 	if (size > 8) {
 		assert(size % 4 == 0);
 		if (ir_target_big_endian()) {
@@ -1088,6 +1093,10 @@ static void emit_tarval_data(ir_type *type, ir_tarval *tv)
 		}
 	} else {
 		/* default case */
+		if(ir_platform.map_double_float && mode_is_float(mode)) {
+			tv = tarval_convert_to(tv, mode_F);
+		    size = 4;
+		}
 		emit_size_type(size);
 		emit_tv(tv, 0, size);
 		be_emit_char('\n');

@@ -36,6 +36,15 @@ int riscv_cond_attrs_equal(ir_node const *const a, ir_node const *const b)
 		a_attr->cond == b_attr->cond;
 }
 
+int riscv_condf_attrs_equal(ir_node const *const a, ir_node const *const b)
+{
+	riscv_condf_attr_t const *const a_attr = get_riscv_condf_attr_const(a);
+	riscv_condf_attr_t const *const b_attr = get_riscv_condf_attr_const(b);
+	return
+		riscv_attrs_equal_(&a_attr->attr, &b_attr->attr) &&
+		a_attr->cond == b_attr->cond;
+}
+
 int riscv_immediate_attrs_equal(ir_node const *const a, ir_node const *const b)
 {
 	riscv_immediate_attr_t const *const a_attr = get_riscv_immediate_attr_const(a);

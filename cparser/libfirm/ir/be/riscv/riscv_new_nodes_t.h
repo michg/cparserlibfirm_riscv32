@@ -20,6 +20,7 @@ void riscv_dump_node(FILE *F, const ir_node *n, dump_reason_t reason);
 int riscv_attrs_equal(ir_node const *a, ir_node const *b);
 int riscv_immediate_attrs_equal(ir_node const *a, ir_node const *b);
 int riscv_cond_attrs_equal(ir_node const *a, ir_node const *b);
+int riscv_condf_attrs_equal(ir_node const *a, ir_node const *b);
 int riscv_switch_attrs_equal(ir_node const *a, ir_node const *b);
 int riscv_farith_attrs_equal(ir_node const *a, ir_node const *b);
 

@@ -143,7 +143,9 @@ static loc_t *workset_contains(workset_t *const ws, ir_node const *const val)
 static void workset_insert(workset_t *workset, ir_node *val, bool spilled)
 {
 	/* check for current regclass */
-	assert(arch_irn_consider_in_reg_alloc(cls, val));
+	if(!arch_irn_consider_in_reg_alloc(cls, val)) {
+	arch_irn_consider_in_reg_alloc(cls, val); }
+    assert(arch_irn_consider_in_reg_alloc(cls, val));
 
 	/* check if val is already contained */
 	loc_t *const oloc = workset_contains(workset, val);

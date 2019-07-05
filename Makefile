@@ -1,5 +1,5 @@
 
-DIRS = binutils cparser samples
+DIRS = binutils cparser
 
 .PHONY:		all install clean
 

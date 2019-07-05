@@ -1625,6 +1625,36 @@ void formatRF(unsigned int code) {
   emitWord(((code>>4)&0x7F) << 25 | src2 << 20 | src1 << 15 | (code&7)<<12 | dst<<7 | 0x53);
 }
 
+void formatNF(unsigned int code) {
+  int dst, src1;
+
+  /* opcode with two register operands */
+  expect(TOK_FREGISTER);
+  dst = tokenvalNumber;
+  getToken();
+  expect(TOK_COMMA);
+  getToken();
+  expect(TOK_FREGISTER);
+  src1 = tokenvalNumber;
+  getToken();
+  emitWord(((code>>4)&0x7F) << 25 | src1 << 20 | src1 << 15 | (code&7)<<12 | dst<<7 | 0x53);
+}
+
+void formatMF(unsigned int code) {
+  int dst, src1;
+
+  /* opcode with three register operands */
+  expect(TOK_FREGISTER);
+  dst = tokenvalNumber;
+  getToken();
+  expect(TOK_COMMA);
+  getToken();
+  expect(TOK_FREGISTER);
+  src1 = tokenvalNumber;
+  getToken();
+  emitWord(((code>>4)&0x7F) << 25 | src1 << 20 | src1 << 15 | (code&7)<<12 | dst<<7 | 0x53);
+}
+
 void formatRF2(unsigned int code) {
   int dst, src1;
 
@@ -2342,7 +2372,9 @@ Instr instrTable[] = {
   { "fmul.s",  formatRF, OP_MULF  },
   { "fdiv.s",  formatRF, OP_DIVF  },
   { "fsgnj.s",  formatRF, OP_SGNJF },
+  { "fmv.s",  formatMF, OP_SGNJF },
   { "fsgnjn.s",  formatRF, OP_SGNJNF },
+  { "fneg.s",  formatNF, OP_SGNJNF },
   { "fsgnjx.s",  formatRF, OP_SGNJXF },
   { "fmin.s",  formatRF, OP_MINF  },
   { "fmax.s",  formatRF, OP_MAXF  },

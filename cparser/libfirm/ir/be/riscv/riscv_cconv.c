@@ -22,16 +22,32 @@ static unsigned const regs_param_gp[] = {
 	REG_X17,
 };
 
+static unsigned const regs_param_fp[] = {
+	REG_F10,
+	REG_F11,
+	REG_F12,
+	REG_F13,
+	REG_F14,
+	REG_F15,
+	REG_F16,
+	REG_F17,
+};
+
 static unsigned const regs_result_gp[] = {
 	REG_X10,
 	REG_X11,
+};
+
+static unsigned const regs_result_fp[] = {
+	REG_F10,
+	REG_F11,
 };
 
 void riscv_determine_calling_convention(riscv_calling_convention_t *const cconv, ir_type *const fun_type)
 {
 	/* Handle parameters. */
 	riscv_reg_or_slot_t *params   = NULL;
-	size_t               gp_param = 0;
+	size_t               gpfp_param = 0;    
 	size_t         const n_params = get_method_n_params(fun_type);
 	
     int offset = !is_method_variadic(fun_type) ? ARRAY_SIZE(regs_param_gp) : 0;
@@ -45,21 +61,22 @@ void riscv_determine_calling_convention(riscv_calling_convention_t *const cconv,
 			if (!param_mode) {
 				panic("TODO");
 			} else if (mode_is_float(param_mode)) {
-				panic("TODO");
-			} else {
-				
-			
-           		if (gp_param < ARRAY_SIZE(regs_param_gp)) {                    
-                    params[i].reg = &riscv_registers[regs_param_gp[gp_param]];
+				if (gpfp_param < ARRAY_SIZE(regs_param_fp)) {                    
+                    params[i].reg = &riscv_registers[regs_param_fp[gpfp_param]];
+                    ++gpfp_param;
                 }       
-                params[i].offset = (gp_param - offset) * (RISCV_MACHINE_SIZE / 8);
-				++gp_param;	
+			} else {
+           		if (gpfp_param < ARRAY_SIZE(regs_param_gp)) {                    
+                    params[i].reg = &riscv_registers[regs_param_gp[gpfp_param]];
+                }       
+                params[i].offset = (gpfp_param - offset) * (RISCV_MACHINE_SIZE / 8);
+				++gpfp_param;	
 			}
 		}
 	}
     
-	cconv->param_stack_size = gp_param * (RISCV_MACHINE_SIZE / 8);
-	cconv->n_mem_param      = gp_param > ARRAY_SIZE(regs_param_gp) ? gp_param - offset : 0;
+	cconv->param_stack_size = gpfp_param * (RISCV_MACHINE_SIZE / 8);
+	cconv->n_mem_param      = gpfp_param > ARRAY_SIZE(regs_param_gp) ? gpfp_param - offset : 0;
 	cconv->parameters       = params;     
 	
 
@@ -70,13 +87,14 @@ void riscv_determine_calling_convention(riscv_calling_convention_t *const cconv,
 		results = XMALLOCNZ(riscv_reg_or_slot_t, n_results);
 
 		size_t gp_res = 0;
+        size_t fp_res = 0;
 		for (size_t i = 0; i != n_results; ++i) {
 			ir_type *const res_type = get_method_res_type(fun_type, i);
 			ir_mode *const res_mode = get_type_mode(res_type);
 			if (!res_mode) {
 				panic("TODO");
 			} else if (mode_is_float(res_mode)) {
-				panic("TODO");
+				results[i].reg = &riscv_registers[regs_result_fp[fp_res++]];
 			} else {
 				if (gp_res == ARRAY_SIZE(regs_result_gp))
 					panic("too many gp results");

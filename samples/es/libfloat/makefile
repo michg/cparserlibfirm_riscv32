@@ -1,5 +1,6 @@
 #
 # Makefile for Libs
+RESDIR = ../result_rv32im/
 CC = ../../../cparser/build/debug/cparser
 AS = ../../../binutils/as/as
 AR = ../../../binutils/ar/ar 
@@ -9,24 +10,24 @@ CFLAGS = -S --target=riscv32 -I ../include -include sys/param.h
 CSRCS = $(wildcard *.c)
 ASRCS = $(patsubst %.c,%.s,$(CSRCS))
 OSRCS = $(patsubst %.c,%.o,$(CSRCS))
-BIN = libfloat.a
+OBJS = $(addprefix $(RESDIR), $(OSRCS)) 
+BIN = $(RESDIR)libfloat.a
 
 .PHONY:		all
 
-.PRECIOUS: %.s
+.PRECIOUS: $(RESDIR)%.s
 
 all:		$(BIN)
 
-%.s:%.c
+$(RESDIR)%.s:%.c
 	export CPARSER_PP=cpp; \
 	echo $(CPARSER_PP); \
-	$(CC) $(CFLAGS) $<
+	$(CC) -o $@ $(CFLAGS) $<
 
-%.o:%.s
+$(RESDIR)%.o:$(RESDIR)%.s
 	$(AS) -o $@ $<
 
-$(BIN):$(OSRCS)
+$(BIN):$(OBJS)
 	$(AR) -rsv $@ $^
+	rm -f $(OBJS)
 
-clean:
-		rm -f *~ $(OSRCS) $(ASRCS) $(BIN)

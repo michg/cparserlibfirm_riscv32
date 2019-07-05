@@ -1,4 +1,4 @@
-/*
+ /*
  * This file is part of libFirm.
  * Copyright (C) 2018 Christoph Mallon.
  */
@@ -61,6 +61,12 @@ void riscv_emitf(ir_node const *const node, char const *fmt, ...)
 		case 'C': {
 			riscv_cond_t const cond = (riscv_cond_t)va_arg(ap, int);
 			be_emit_string(riscv_get_cond_name(cond));
+			break;
+		}
+        
+        case 'F': {
+			riscv_condf_t const cond = (riscv_condf_t)va_arg(ap, int);
+			be_emit_string(riscv_get_condf_name(cond));
 			break;
 		}
 
@@ -178,9 +184,15 @@ static void emit_be_Copy(ir_node const *const node)
 	if (in == out)
 		return;
 
-	if (in->cls == &riscv_reg_classes[CLASS_riscv_gp]) {
+	if ((in->cls == &riscv_reg_classes[CLASS_riscv_gp]) && (out->cls == &riscv_reg_classes[CLASS_riscv_gp])) {
 		riscv_emitf(node, "mv\t%R, %R", out, in);
-	} else {
+	} else if((in->cls == &riscv_reg_classes[CLASS_riscv_fp]) && (out->cls == &riscv_reg_classes[CLASS_riscv_fp])){
+        riscv_emitf(node, "fmv.s\t%R, %R", out, in);
+    } else if((in->cls == &riscv_reg_classes[CLASS_riscv_gp]) && (out->cls == &riscv_reg_classes[CLASS_riscv_fp])){
+        riscv_emitf(node, "fmv.s.x\t%R, %R", out, in);
+    } else if((in->cls == &riscv_reg_classes[CLASS_riscv_fp]) && (out->cls == &riscv_reg_classes[CLASS_riscv_gp])){
+        riscv_emitf(node, "fmv.x.s\t%R, %R", out, in);
+    } else {
 		panic("unexpected register class");
 	}
 }
@@ -253,6 +265,13 @@ static void emit_riscv_bcc(ir_node const *const node)
 		riscv_emitf(node, fmt, cond, projs.t);
 		emit_jmp(node, projs.f);
 	}
+} 
+
+static void emit_riscv_bccf(ir_node const *const node)
+{
+	riscv_condf_t           const cond  = get_riscv_condf_attr_const(node)->cond;	
+	riscv_emitf(node,"%F\t%D0, %S0, %S1" , cond);
+	
 }
 
 static void emit_riscv_j(ir_node const *const node)
@@ -295,6 +314,7 @@ static void riscv_register_emitters(void)
 	be_set_emitter(op_be_Perm,         emit_be_Perm);
 	be_set_emitter(op_riscv_FrameAddr, emit_riscv_FrameAddr);
 	be_set_emitter(op_riscv_bcc,       emit_riscv_bcc);
+    be_set_emitter(op_riscv_cmpf,      emit_riscv_bccf);
 	be_set_emitter(op_riscv_j,         emit_riscv_j);
 	be_set_emitter(op_riscv_switch,    emit_riscv_switch);
 }

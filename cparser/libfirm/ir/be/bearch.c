@@ -85,7 +85,7 @@ const arch_register_t *arch_get_irn_register_in(const ir_node *node, int pos)
 
 static inline void set_out_info_reg(reg_out_info_t *const out, arch_register_t const *const reg)
 {
-	assert(arch_reg_is_allocatable(out->req, reg));
+    assert(arch_reg_is_allocatable(out->req, reg));
 	out->reg = reg;
 }
 

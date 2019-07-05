@@ -30,6 +30,7 @@ typedef struct platform_t {
 	ir_type               *va_list_type;
 	char                  user_label_prefix;
 	bool                  initialized                       : 1;
+    bool                  map_double_float                  : 1;
 	unsigned              long_double_size                  : 5;
 	unsigned              long_double_align                 : 5;
 	unsigned              long_size                         : 4;

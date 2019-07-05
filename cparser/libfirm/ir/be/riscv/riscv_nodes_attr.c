@@ -19,3 +19,12 @@ char const *riscv_get_cond_name(riscv_cond_t const cond)
 	}
 	panic("invalid cond");
 }
+char const *riscv_get_condf_name(riscv_condf_t const cond)
+{
+	switch (cond) {
+	case riscv_cc_feq:  return "feq.s";
+	case riscv_cc_flt:  return "flt.s";
+	case riscv_cc_fle:  return "fle.s";
+	}
+	panic("invalid cond");
+}

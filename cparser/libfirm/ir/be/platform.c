@@ -1,4 +1,4 @@
-/*
+ /*
  * This file is part of libFirm.
  * Copyright (C) 2017 University of Karlsruhe.
  */
@@ -74,6 +74,8 @@ void ir_platform_set(ir_machine_triple_t const *machine,
 	ir_platform.wchar_is_signed     = true;
 	ir_platform.wchar_type          = IR_TYPE_INT;
 	ir_platform.ia32_po2_stackalign = 2;
+    ir_platform.map_double_float = false;
+    
 
 	const char *const cpu          = ir_triple_get_cpu_type(machine);
 	const char *const manufacturer = ir_triple_get_manufacturer(machine);
